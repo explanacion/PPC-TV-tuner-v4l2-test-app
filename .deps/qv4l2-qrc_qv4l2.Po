@@ -1,0 +1,3 @@
+qv4l2-qrc_qv4l2.o: qrc_qv4l2.cpp /usr/include/stdc-predef.h
+
+/usr/include/stdc-predef.h:
