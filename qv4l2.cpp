@@ -50,6 +50,8 @@
 #include <dirent.h>
 #include <libv4l2.h>
 
+#include <QDebug>
+
 ApplicationWindow::ApplicationWindow() :
 	m_capture(NULL),
 	m_sigMapper(NULL)
@@ -292,6 +294,7 @@ void ApplicationWindow::capVbiFrame()
 		m_lastFrame = m_frame;
 		m_tv = tv;
 	}
+
 	status = QString("Frame: %1 Fps: %2").arg(++m_frame).arg(m_fps);
 	if (m_showFrames)
 		m_capture->setImage(*m_capImage, status);
@@ -302,6 +305,7 @@ void ApplicationWindow::capVbiFrame()
 		refresh();
 }
 
+// main capture loop
 void ApplicationWindow::capFrame()
 {
 	__u32 buftype = m_genTab->bufType();
@@ -345,22 +349,23 @@ void ApplicationWindow::capFrame()
 			return;
 
 		if (m_showFrames) {
-			if (m_mustConvert)
-				err = v4lconvert_convert(m_convertData,
-					&m_capSrcFormat, &m_capDestFormat,
-					(unsigned char *)m_buffers[buf.index].start, buf.bytesused,
-					m_capImage->bits(), m_capDestFormat.fmt.pix.sizeimage);
-			if (!m_mustConvert || err < 0)
-				memcpy(m_capImage->bits(),
-				       (unsigned char *)m_buffers[buf.index].start,
-				       std::min(buf.bytesused, (unsigned)m_capImage->numBytes()));
+            if (m_mustConvert)
+                err = v4lconvert_convert(m_convertData,
+                    &m_capSrcFormat, &m_capDestFormat,
+                    (unsigned char *)m_buffers[buf.index].start, buf.bytesused,
+                    m_capImage->bits(), m_capDestFormat.fmt.pix.sizeimage);
+            if (!m_mustConvert || err < 0)
+                memcpy(m_capImage->bits(),
+                       (unsigned char *)m_buffers[buf.index].start,
+                       std::min(buf.bytesused, (unsigned)m_capImage->numBytes()));
 		}
-		if (m_makeSnapshot)
+        if (m_makeSnapshot) {
 			makeSnapshot((unsigned char *)m_buffers[buf.index].start, buf.bytesused);
+        }
 		if (m_saveRaw.openMode())
 			m_saveRaw.write((const char *)m_buffers[buf.index].start, buf.bytesused);
 
-		qbuf(buf);
+        qbuf(buf);
 		break;
 
 	case methodUser:
@@ -382,6 +387,7 @@ void ApplicationWindow::capFrame()
 				memcpy(m_capImage->bits(), (unsigned char *)buf.m.userptr,
 				       std::min(buf.bytesused, (unsigned)m_capImage->numBytes()));
 		}
+
 		if (m_makeSnapshot)
 			makeSnapshot((unsigned char *)buf.m.userptr, buf.bytesused);
 		if (m_saveRaw.openMode())
@@ -788,6 +794,7 @@ void ApplicationWindow::makeSnapshot(unsigned char *buf, unsigned size)
 		error("No memory to make snapshot\n");
 		return;
 	}
+
 	connect(dlg, SIGNAL(fileSelected(const QString &)), dlg, SLOT(selected(const QString &)));
 	dlg->show();
 }

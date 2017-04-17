@@ -27,6 +27,7 @@
 #include <QPushButton>
 #include <QLineEdit>
 #include <QDoubleValidator>
+#include <QTextCodec> // for utf8 strings
 
 #include <stdio.h>
 #include <errno.h>
@@ -243,6 +244,43 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 		detectSubchansClicked();
 	}
 
+    // new code - create ListBox with the list of preset channels with frequencies
+    QHBoxLayout *chanlayout = new QHBoxLayout(parent);
+    chantable = new QTableWidget(parent);
+    chanlayout->addWidget(chantable);
+    chantable->insertColumn(chantable->columnCount());
+    chantable->setHorizontalHeaderItem(0,new QTableWidgetItem("Channel"));
+    chantable->insertColumn(chantable->columnCount());
+    chantable->setHorizontalHeaderItem(1,new QTableWidgetItem("Frequency, MHz"));
+    chantable->setColumnWidth(0,200);
+    chantable->setColumnWidth(1,200);
+    QTextCodec::setCodecForCStrings(QTextCodec::codecForName("UTF-8"));
+    QStringList channels;
+    QStringList frequencies;
+    channels.append("1к Че"); frequencies.append("49.75");
+    channels.append("56к Звезда"); frequencies.append("751.25");
+    channels.append("49к ТВЦ"); frequencies.append("695.25");
+    channels.append("39к Культура"); frequencies.append("615.25");
+    channels.append("29к Пятница"); frequencies.append("335.25");
+    channels.append("34к Афонтово"); frequencies.append("575.25");
+    channels.append("22к НТВ"); frequencies.append("479.25");
+    channels.append("36к ТНТ"); frequencies.append("591.25");
+    channels.append("9к ТВ3"); frequencies.append("199.25");
+
+    for (int i = 0; i < channels.length(); i++)
+    {
+        chantable->insertRow(chantable->rowCount());
+        chantable->setItem(i,0, new QTableWidgetItem(channels[i]));
+        chantable->setItem(i,1, new QTableWidgetItem(frequencies[i]));
+    }
+    //chanlayout->addSpacerItem(new QSpacerItem(1,1,QSizePolicy::Expanding, QSizePolicy::Fixed));
+    chantable->setMinimumWidth(400);
+    connect(chantable,SIGNAL(cellClicked(int,int)),this,SLOT(setFreq(int,int)));
+    connect((QObject*)chantable->verticalHeader(),SIGNAL(sectionClicked(int)),this,SLOT(setRFreq(int)));
+    addLayout(chanlayout,3,1);
+
+    //
+
 	if (m_modulator.capability) {
 		QDoubleValidator *val;
 		double factor = (m_modulator.capability & V4L2_TUNER_CAP_LOW) ? 16 : 16000;
@@ -290,7 +328,7 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 			m_vbiMethods->addItem("Sliced");
 		addWidget(m_vbiMethods);
 		connect(m_vbiMethods, SIGNAL(activated(int)), SLOT(vbiMethodsChanged(int)));
-		updateVideoInput();
+        updateVideoInput();
 		goto capture_method;
 	}
 
@@ -348,6 +386,7 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 	}
 
 capture_method:
+
 	addLabel("Capture Method");
 	m_capMethods = new QComboBox(parent);
 	m_buftype = isSlicedVbi() ? V4L2_BUF_TYPE_SLICED_VBI_CAPTURE :
@@ -381,6 +420,19 @@ capture_method:
 done:
 	QGridLayout::addWidget(new QWidget(parent), rowCount(), 0, 1, n);
 	setRowStretch(rowCount() - 1, 1);
+}
+
+void GeneralTab::setFreq(int row, int col)
+{
+    QString selectedvalue = chantable->item(row,1)->text();
+    m_freq->setText(selectedvalue);
+    freqChanged();
+
+}
+
+void GeneralTab::setRFreq(int r)
+{
+    setFreq(r,1);
 }
 
 void GeneralTab::addWidget(QWidget *w, Qt::Alignment align)

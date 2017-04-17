@@ -26,6 +26,7 @@
 #include <linux/videodev2.h>
 #include "qv4l2.h"
 #include "v4l2-api.h"
+#include <QTableWidget> // for channels table
 
 class QComboBox;
 class QCheckBox;
@@ -41,6 +42,7 @@ public:
 	virtual ~GeneralTab() {}
 
 	CapMethod capMethod();
+    QTableWidget *chantable;
 	bool get_interval(struct v4l2_fract &interval);
 	int width() const { return m_width; }
 	int height() const { return m_height; }
@@ -94,6 +96,8 @@ private slots:
 	void frameIntervalChanged(int);
 	void vidOutFormatChanged(int);
 	void vbiMethodsChanged(int);
+    void setFreq(int,int); // slot for setting the frequency
+    void setRFreq(int); // slot for setting the frequency from entire row
 
 private:
 	void updateVideoInput();
