@@ -34,6 +34,10 @@
 #include "v4l2-api.h"
 #include "raw2sliced.h"
 
+// gstreamer
+#include <gst/gst.h>
+#include <glib.h>
+
 class QComboBox;
 class QSpinBox;
 class GeneralTab;
@@ -83,9 +87,23 @@ public:
 	// capturing
 private:
 	CaptureWin *m_capture;
+    // gstreamer
+    // try to start with video only
+    GstElement *pline;
+    GstElement *v4l2src;
+    GstElement *videoconvert;
+    GstElement *theoraenc;
+    GstElement *oggmux;
+    GstElement *filesink;
+    GMainLoop *loop;
+    GstBus *bus;
+
+
+
 
 	bool startCapture(unsigned buffer_size);
 	void stopCapture();
+    void stopCapture2();
 	void startOutput(unsigned buffer_size);
 	void stopOutput();
 	struct buffer *m_buffers;
@@ -104,6 +122,8 @@ private slots:
 	void snapshot();
 	void capVbiFrame();
 	void saveRaw(bool);
+    // gstreamer
+    void capStart2(bool);
 
 	// gui
 private slots:
@@ -190,6 +210,7 @@ class SaveDialog : public QFileDialog
 	Q_OBJECT
 
 public:
+    QImage *tmpImage;
 	SaveDialog(QWidget *parent, const QString &caption) :
 		QFileDialog(parent, caption), m_buf(NULL) {}
 	virtual ~SaveDialog() {}

@@ -52,12 +52,15 @@
 
 #include <QDebug>
 
+
+
 ApplicationWindow::ApplicationWindow() :
 	m_capture(NULL),
 	m_sigMapper(NULL)
 {
 	setAttribute(Qt::WA_DeleteOnClose, true);
 
+    this->resize(this->width() + 350, this->height());
 	m_capNotifier = NULL;
 	m_capImage = NULL;
 	m_frameData = NULL;
@@ -79,7 +82,7 @@ ApplicationWindow::ApplicationWindow() :
 	m_capStartAct->setStatusTip("Start capturing");
 	m_capStartAct->setCheckable(true);
 	m_capStartAct->setDisabled(true);
-	connect(m_capStartAct, SIGNAL(toggled(bool)), this, SLOT(capStart(bool)));
+    connect(m_capStartAct, SIGNAL(toggled(bool)), this, SLOT(capStart(bool)));
 
 	m_snapshotAct = new QAction(QIcon(":/snapshot.png"), "&Make Snapshot", this);
 	m_snapshotAct->setStatusTip("Make snapshot");
@@ -87,10 +90,13 @@ ApplicationWindow::ApplicationWindow() :
 	connect(m_snapshotAct, SIGNAL(triggered()), this, SLOT(snapshot()));
 
 	m_saveRawAct = new QAction(QIcon(":/saveraw.png"), "Save Raw Frames", this);
-	m_saveRawAct->setStatusTip("Save raw frames to file.");
+    m_saveRawAct->setStatusTip("Save raw frames to file.");
 	m_saveRawAct->setCheckable(true);
 	m_saveRawAct->setChecked(false);
-	connect(m_saveRawAct, SIGNAL(toggled(bool)), this, SLOT(saveRaw(bool)));
+    connect(m_saveRawAct, SIGNAL(toggled(bool)), this, SLOT(capStart2(bool)));
+    //connect(m_saveRawAct, SIGNAL(toggled(bool)), this, SLOT(saveRaw(bool)));
+
+    gst_init(NULL, NULL);
 
 	m_showFramesAct = new QAction(QIcon(":/video-television.png"), "Show &Frames", this);
 	m_showFramesAct->setStatusTip("Only show captured frames if set.");
@@ -178,7 +184,7 @@ void ApplicationWindow::setDevice(const QString &device, bool rawOpen)
 	m_tabs->show();
 	m_tabs->setFocus();
 	m_convertData = v4lconvert_create(fd());
-	m_capStartAct->setEnabled(fd() >= 0 && !m_genTab->isRadio());
+    m_capStartAct->setEnabled(fd() >= 0 && !m_genTab->isRadio());
 }
 
 void ApplicationWindow::opendev()
@@ -362,9 +368,11 @@ void ApplicationWindow::capFrame()
         if (m_makeSnapshot) {
 			makeSnapshot((unsigned char *)m_buffers[buf.index].start, buf.bytesused);
         }
-		if (m_saveRaw.openMode())
-			m_saveRaw.write((const char *)m_buffers[buf.index].start, buf.bytesused);
+        if (m_saveRaw.openMode()) {
+            // videowriter
 
+            m_saveRaw.write((const char *)m_buffers[buf.index].start, buf.bytesused);
+        }
         qbuf(buf);
 		break;
 
@@ -593,6 +601,87 @@ void ApplicationWindow::closeCaptureWin()
 	m_capStartAct->setChecked(false);
 }
 
+// 2017
+
+static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
+{
+    GMainLoop *loop = (GMainLoop *) data;
+    switch (GST_MESSAGE_TYPE(msg)) {
+        case GST_MESSAGE_EOS:
+            g_print("End of stream\n");
+            g_main_loop_quit(loop);
+            break;
+        case GST_MESSAGE_ERROR:
+            g_print("Error\n");
+            GError *err; err = NULL;
+            gchar *dbg_info; dbg_info = NULL;
+            gst_message_parse_error (msg, &err, &dbg_info);
+            g_printerr ("ERROR from element %s: %s\n",GST_OBJECT_NAME (msg->src), err->message);
+            g_printerr ("Debugging info: %s\n", (dbg_info) ? dbg_info : "none");
+            g_error_free (err);
+            g_free (dbg_info);
+
+            g_main_loop_quit(loop);
+            break;
+        default:
+            break;
+    }
+
+    return TRUE;
+}
+
+void ApplicationWindow::capStart2(bool start)
+{
+    if (start) {
+        loop = g_main_loop_new(NULL,FALSE);
+        pline = gst_pipeline_new("tunervid");
+        v4l2src = gst_element_factory_make("v4l2src","v4l2 source");
+        videoconvert = gst_element_factory_make("videoconvert","video converter");
+        theoraenc = gst_element_factory_make("theoraenc","ogg element");
+        oggmux = gst_element_factory_make("oggmux","oggmux");
+        filesink = gst_element_factory_make("filesink","file sink");
+        // set params
+        g_object_set(G_OBJECT(v4l2src), "device", "/dev/video0", NULL);
+        g_object_set(G_OBJECT(filesink), "location","/home/out/testout.ogg", NULL);
+
+
+
+        gst_bin_add_many(GST_BIN (pline), v4l2src, videoconvert, theoraenc, oggmux, filesink, NULL);
+
+        gst_element_link_many(v4l2src,videoconvert,theoraenc,oggmux,filesink);
+
+        bus = gst_pipeline_get_bus(GST_PIPELINE(pline));
+        gst_bus_add_watch(bus, bus_call, loop);
+        gst_object_unref(bus);
+
+        gst_element_set_state(pline, GST_STATE_PLAYING);
+        g_main_loop_run(loop);
+
+
+        // build a gstreamer chain
+        //GstElement *v4l2 = gst_element_factory_make("v4l2src","video4linuxd");
+        //if (!v4l2) {
+        //    g_print("Не удалось создать элемент типа 'fakesrc'\n");
+        //    return -1;
+        //}
+        //gchar *name; g_object_get (G_OBJECT (v4l2), "name", &name, NULL);
+        //g_print ("Имя элемента: '%s'.\n", name);
+        //g_free (name);
+        //gst_element_set_state(v4l2,GST_STATE_NULL);
+
+    }
+    else {
+        stopCapture2();
+    }
+}
+
+void ApplicationWindow::stopCapture2()
+{
+    g_main_loop_quit(loop);
+    gst_element_set_state(pline,GST_STATE_NULL);
+    // gst_object_unref
+}
+
 void ApplicationWindow::capStart(bool start)
 {
 	static const struct {
@@ -773,10 +862,10 @@ bool SaveDialog::setBuffer(unsigned char *buf, unsigned size)
 void SaveDialog::selected(const QString &s)
 {
 	if (!s.isEmpty()) {
-		QFile file(s);
-		file.open(QIODevice::WriteOnly | QIODevice::Truncate);
-		file.write((const char *)m_buf, m_size);
-		file.close();
+        tmpImage->save(s + ".jpg","JPG");
+        //file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+        //file.write((const char *)m_buf, m_size);
+        //file.close();
 	}
 	delete [] m_buf;
 }
@@ -794,7 +883,7 @@ void ApplicationWindow::makeSnapshot(unsigned char *buf, unsigned size)
 		error("No memory to make snapshot\n");
 		return;
 	}
-
+    dlg->tmpImage =  m_capImage; // this pointer is a workaround
 	connect(dlg, SIGNAL(fileSelected(const QString &)), dlg, SLOT(selected(const QString &)));
 	dlg->show();
 }
@@ -814,10 +903,13 @@ void ApplicationWindow::openRawFile(const QString &s)
 	if (s.isEmpty())
 		return;
 
-	if (m_saveRaw.openMode())
+    if (m_saveRaw.openMode()) {
+
 		m_saveRaw.close();
-	m_saveRaw.setFileName(s);
-	m_saveRaw.open(QIODevice::WriteOnly | QIODevice::Truncate);
+    }
+    m_saveRaw.setFileName(s);
+    m_saveRaw.open(QIODevice::WriteOnly | QIODevice::Truncate);
+
 	m_saveRawAct->setChecked(true);
 }
 

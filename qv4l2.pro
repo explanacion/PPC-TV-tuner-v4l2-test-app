@@ -12,3 +12,11 @@ SOURCES += qv4l2.cpp general-tab.cpp ctrl-tab.cpp v4l2-api.cpp capture-win.cpp v
 LIBS += -L../../lib/libv4l2 -lv4l2 -L../../lib/libv4lconvert -lv4lconvert -lrt -L../libv4l2util -lv4l2util -ldl -ljpeg
 
 RESOURCES += qv4l2.qrc
+
+unix {
+    CONFIG += link_pkgconfig
+    PKGCONFIG += glib-2.0 libxml-2.0 gstreamer-1.0
+}
+
+#INCLUDEPATH += /usr/local/include/opencv/
+#LIBS += -L/usr/local/lib -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_videoio

@@ -261,7 +261,7 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
     channels.append("56к Звезда"); frequencies.append("751.25");
     channels.append("49к ТВЦ"); frequencies.append("695.25");
     channels.append("39к Культура"); frequencies.append("615.25");
-    channels.append("29к Пятница"); frequencies.append("335.25");
+    channels.append("29к Пятница"); frequencies.append("535.25");
     channels.append("34к Афонтово"); frequencies.append("575.25");
     channels.append("22к НТВ"); frequencies.append("479.25");
     channels.append("36к ТНТ"); frequencies.append("591.25");
