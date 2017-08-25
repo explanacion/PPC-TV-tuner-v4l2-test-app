@@ -51,49 +51,52 @@ typedef std::map<unsigned, struct v4l2_queryctrl> CtrlMap;
 typedef std::map<unsigned, QWidget *> WidgetMap;
 
 enum {
-	CTRL_UPDATE_ON_CHANGE = 0x10,
-	CTRL_DEFAULTS,
-	CTRL_REFRESH,
-	CTRL_UPDATE
+    CTRL_UPDATE_ON_CHANGE = 0x10,
+    CTRL_DEFAULTS,
+    CTRL_REFRESH,
+    CTRL_UPDATE
 };
 
 enum CapMethod {
-	methodRead,
-	methodMmap,
-	methodUser
+    methodRead,
+    methodMmap,
+    methodUser
 };
 
 struct buffer {
-	void   *start;
-	size_t  length;
+    void   *start;
+    size_t  length;
 };
 
 
 class ApplicationWindow: public QMainWindow, public v4l2
 {
-	Q_OBJECT
+    Q_OBJECT
 
 public:
-	ApplicationWindow();
-	virtual ~ApplicationWindow();
+    ApplicationWindow();
+    virtual ~ApplicationWindow();
 
 private slots:
-	void closeDevice();
-	void closeCaptureWin();
+    void closeDevice();
+    void closeCaptureWin();
 
 public:
-	void setDevice(const QString &device, bool rawOpen);
+    void setDevice(const QString &device, bool rawOpen);
 
-	// capturing
+    // capturing
 private:
-	CaptureWin *m_capture;
+    CaptureWin *m_capture;
     // gstreamer
     // try to start with video only
     GstElement *pline;
     GstElement *v4l2src;
     GstElement *videoconvert;
-    GstElement *theoraenc;
-    GstElement *oggmux;
+    GstElement *jpegenc;
+    GstElement *alsasrc;
+    GstElement *audioconvert;
+    GstElement *lamemp3enc;
+    GstElement *avimux;
     GstElement *filesink;
     GMainLoop *loop;
     GstBus *bus;
@@ -101,127 +104,127 @@ private:
 
 
 
-	bool startCapture(unsigned buffer_size);
-	void stopCapture();
+    bool startCapture(unsigned buffer_size);
+    void stopCapture();
     void stopCapture2();
-	void startOutput(unsigned buffer_size);
-	void stopOutput();
-	struct buffer *m_buffers;
-	struct v4l2_format m_capSrcFormat;
-	struct v4l2_format m_capDestFormat;
-	unsigned char *m_frameData;
-	unsigned m_nbuffers;
-	struct v4lconvert_data *m_convertData;
-	bool m_mustConvert;
-	CapMethod m_capMethod;
-	bool m_makeSnapshot;
+    void startOutput(unsigned buffer_size);
+    void stopOutput();
+    struct buffer *m_buffers;
+    struct v4l2_format m_capSrcFormat;
+    struct v4l2_format m_capDestFormat;
+    unsigned char *m_frameData;
+    unsigned m_nbuffers;
+    struct v4lconvert_data *m_convertData;
+    bool m_mustConvert;
+    CapMethod m_capMethod;
+    bool m_makeSnapshot;
 
 private slots:
-	void capStart(bool);
-	void capFrame();
-	void snapshot();
-	void capVbiFrame();
-	void saveRaw(bool);
+    void capStart(bool);
+    void capFrame();
+    void snapshot();
+    void capVbiFrame();
+    void saveRaw(bool);
     // gstreamer
     void capStart2(bool);
 
-	// gui
+    // gui
 private slots:
-	void opendev();
-	void openrawdev();
-	void ctrlAction(int);
-	void openRawFile(const QString &s);
-	void rejectedRawFile();
+    void opendev();
+    void openrawdev();
+    void ctrlAction(int);
+    void openRawFile(const QString &s);
+    void rejectedRawFile();
 
-	void about();
+    void about();
 
 public:
-	virtual void error(const QString &text);
-	void error(int err);
-	void errorCtrl(unsigned id, int err);
-	void errorCtrl(unsigned id, int err, long long v);
-	void errorCtrl(unsigned id, int err, const QString &v);
-	void info(const QString &info);
-	virtual void closeEvent(QCloseEvent *event);
+    virtual void error(const QString &text);
+    void error(int err);
+    void errorCtrl(unsigned id, int err);
+    void errorCtrl(unsigned id, int err, long long v);
+    void errorCtrl(unsigned id, int err, const QString &v);
+    void info(const QString &info);
+    virtual void closeEvent(QCloseEvent *event);
 
 private:
-	void addWidget(QGridLayout *grid, QWidget *w, Qt::Alignment align = Qt::AlignLeft);
-	void addLabel(QGridLayout *grid, const QString &text, Qt::Alignment align = Qt::AlignRight)
-	{
-		addWidget(grid, new QLabel(text, parentWidget()), align);
-	}
-	void addTabs();
-	void finishGrid(QGridLayout *grid, unsigned ctrl_class);
-	void addCtrl(QGridLayout *grid, const struct v4l2_queryctrl &qctrl);
-	void updateCtrl(unsigned id);
-	void refresh(unsigned ctrl_class);
-	void refresh();
-	void makeSnapshot(unsigned char *buf, unsigned size);
-	void setDefaults(unsigned ctrl_class);
-	int getVal(unsigned id);
-	long long getVal64(unsigned id);
-	QString getString(unsigned id);
-	void setVal(unsigned id, int v);
-	void setVal64(unsigned id, long long v);
-	void setString(unsigned id, const QString &v);
-	QString getCtrlFlags(unsigned flags);
-	void setWhat(QWidget *w, unsigned id, const QString &v);
-	void setWhat(QWidget *w, unsigned id, long long v);
-	void updateVideoInput();
-	void updateVideoOutput();
-	void updateAudioInput();
-	void updateAudioOutput();
-	void updateStandard();
-	void updateFreq();
-	void updateFreqChannel();
+    void addWidget(QGridLayout *grid, QWidget *w, Qt::Alignment align = Qt::AlignLeft);
+    void addLabel(QGridLayout *grid, const QString &text, Qt::Alignment align = Qt::AlignRight)
+    {
+        addWidget(grid, new QLabel(text, parentWidget()), align);
+    }
+    void addTabs();
+    void finishGrid(QGridLayout *grid, unsigned ctrl_class);
+    void addCtrl(QGridLayout *grid, const struct v4l2_queryctrl &qctrl);
+    void updateCtrl(unsigned id);
+    void refresh(unsigned ctrl_class);
+    void refresh();
+    void makeSnapshot(unsigned char *buf, unsigned size);
+    void setDefaults(unsigned ctrl_class);
+    int getVal(unsigned id);
+    long long getVal64(unsigned id);
+    QString getString(unsigned id);
+    void setVal(unsigned id, int v);
+    void setVal64(unsigned id, long long v);
+    void setString(unsigned id, const QString &v);
+    QString getCtrlFlags(unsigned flags);
+    void setWhat(QWidget *w, unsigned id, const QString &v);
+    void setWhat(QWidget *w, unsigned id, long long v);
+    void updateVideoInput();
+    void updateVideoOutput();
+    void updateAudioInput();
+    void updateAudioOutput();
+    void updateStandard();
+    void updateFreq();
+    void updateFreqChannel();
 
-	GeneralTab *m_genTab;
-	VbiTab *m_vbiTab;
-	QAction *m_capStartAct;
-	QAction *m_snapshotAct;
-	QAction *m_saveRawAct;
-	QAction *m_showFramesAct;
-	QString m_filename;
-	QSignalMapper *m_sigMapper;
-	QTabWidget *m_tabs;
-	QSocketNotifier *m_capNotifier;
-	QImage *m_capImage;
-	int m_row, m_col, m_cols;
-	CtrlMap m_ctrlMap;
-	WidgetMap m_widgetMap;
-	ClassMap m_classMap;
-	bool m_haveExtendedUserCtrls;
-	bool m_showFrames;
-	int m_vbiSize;
-	unsigned m_vbiWidth;
-	unsigned m_vbiHeight;
-	struct vbi_handle m_vbiHandle;
-	unsigned m_frame;
-	unsigned m_lastFrame;
-	unsigned m_fps;
-	struct timeval m_tv;
-	QFile m_saveRaw;
+    GeneralTab *m_genTab;
+    VbiTab *m_vbiTab;
+    QAction *m_capStartAct;
+    QAction *m_snapshotAct;
+    QAction *m_saveRawAct;
+    QAction *m_showFramesAct;
+    QString m_filename;
+    QSignalMapper *m_sigMapper;
+    QTabWidget *m_tabs;
+    QSocketNotifier *m_capNotifier;
+    QImage *m_capImage;
+    int m_row, m_col, m_cols;
+    CtrlMap m_ctrlMap;
+    WidgetMap m_widgetMap;
+    ClassMap m_classMap;
+    bool m_haveExtendedUserCtrls;
+    bool m_showFrames;
+    int m_vbiSize;
+    unsigned m_vbiWidth;
+    unsigned m_vbiHeight;
+    struct vbi_handle m_vbiHandle;
+    unsigned m_frame;
+    unsigned m_lastFrame;
+    unsigned m_fps;
+    struct timeval m_tv;
+    QFile m_saveRaw;
 };
 
 extern ApplicationWindow *g_mw;
 
 class SaveDialog : public QFileDialog
 {
-	Q_OBJECT
+    Q_OBJECT
 
 public:
     QImage *tmpImage;
-	SaveDialog(QWidget *parent, const QString &caption) :
-		QFileDialog(parent, caption), m_buf(NULL) {}
-	virtual ~SaveDialog() {}
-	bool setBuffer(unsigned char *buf, unsigned size);
+    SaveDialog(QWidget *parent, const QString &caption) :
+        QFileDialog(parent, caption), m_buf(NULL) {}
+    virtual ~SaveDialog() {}
+    bool setBuffer(unsigned char *buf, unsigned size);
 
 public slots:
-	void selected(const QString &s);
+    void selected(const QString &s);
 
 private:
-	unsigned char *m_buf;
-	unsigned m_size;
+    unsigned char *m_buf;
+    unsigned m_size;
 };
 
 #endif
