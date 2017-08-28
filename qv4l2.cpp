@@ -636,43 +636,53 @@ void ApplicationWindow::capStart2(bool start)
         loop = g_main_loop_new(NULL,FALSE);
         pline = gst_pipeline_new("tunervid");
         v4l2src = gst_element_factory_make("v4l2src","v4l2src");
+        videoqueue = gst_element_factory_make("queue","queue for video");
+        alsasrc = gst_element_factory_make("alsasrc","alsasrc");
+        audioqueue = gst_element_factory_make("queue","queue for audio");
         videoconvert = gst_element_factory_make("videoconvert","videoconvert");
         audioconvert = gst_element_factory_make("audioconvert","audioconvert");
-        jpegenc = gst_element_factory_make("jpegenc","jpegenc");
-        lamemp3enc = gst_element_factory_make("lamemp3enc","lamemp3enc");
-        avimux = gst_element_factory_make("avimux","avimux");
+        videorate = gst_element_factory_make("videorate","videorate");
+        theoraenc = gst_element_factory_make("theoraenc","theoraenc");
+        vorbisenc = gst_element_factory_make("vorbisenc","vorbisenc");
+        oggmux = gst_element_factory_make("oggmux","oggmux");
         filesink = gst_element_factory_make("filesink","filesink");
         // set params
         g_object_set(G_OBJECT(v4l2src), "device", "/dev/video0", NULL);
         g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
-        g_object_set(G_OBJECT(filesink), "location","/home/out/testout.avi", NULL);
-        //g_object_set(G_OBJECT(lamemp3enc), "bitrate","192");
+        g_object_set(G_OBJECT(filesink), "location","/home/out/testout.ogg", NULL);
+        g_object_set(G_OBJECT(theoraenc), "quality",63,NULL);
 
-        GstCaps *caps;
+        GstCaps *vcaps;
 
-        caps = gst_caps_new_simple ("video/x-raw-rgb",
+        vcaps = gst_caps_new_simple ("video/x-raw",
           "bpp",G_TYPE_INT,24,
           "depth",G_TYPE_INT,24,
            "width", G_TYPE_INT, 640,
            "height", G_TYPE_INT, 480,
            NULL);
 
-        GstPad *sinkpad;
-        sinkpad = gst_element_get_static_pad(videoconvert,"sink");
-        gst_pad_set_caps(sinkpad,caps);
+        //GstPad *sinkpad;
+//        sinkpad = gst_element_get_static_pad(videoconvert,"sink");
+//        gst_pad_set_caps(sinkpad,caps);
+
+        //gboolean vlink_ok;
+        //vlink_ok = gst_element_link_filtered(videoconvert,theoraenc, vcaps);
+        //gst_caps_unref (vcaps);
+
+        //g_object_set(G_OBJECT(theoraenc), ""
+
+        gst_bin_add_many(GST_BIN (pline), v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, alsasrc, audioqueue, audioconvert, vorbisenc, filesink, NULL);
+
+        gst_element_link_many(v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, NULL);
+        gst_element_link_many(alsasrc, audioqueue, audioconvert, vorbisenc, oggmux, NULL);
+        gst_element_link(oggmux,filesink);
+
+        GstCaps *caps;
+        caps = gst_caps_from_string("audio/x-raw,format=S16LE,rate=44100,channels=1");
 
         gboolean link_ok;
-        link_ok = gst_element_link_filtered(videoconvert,jpegenc, caps);
-
+        link_ok = gst_element_link_filtered (alsasrc, audioqueue, caps);
         gst_caps_unref (caps);
-
-        //g_object_set(G_OBJECT(jpegenc), ""
-
-        gst_bin_add_many(GST_BIN (pline), v4l2src, videoconvert, jpegenc, avimux, alsasrc, audioconvert, lamemp3enc, filesink, NULL);
-
-        gst_element_link_many(v4l2src, videoconvert, jpegenc, avimux, NULL);
-        gst_element_link_many(alsasrc, audioconvert, lamemp3enc, avimux, NULL);
-        gst_element_link(avimux,filesink);
 
 
         bus = gst_pipeline_get_bus(GST_PIPELINE(pline));

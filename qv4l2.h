@@ -91,12 +91,15 @@ private:
     // try to start with video only
     GstElement *pline;
     GstElement *v4l2src;
+    GstElement *videoqueue;
     GstElement *videoconvert;
-    GstElement *jpegenc;
+    GstElement *theoraenc;
     GstElement *alsasrc;
+    GstElement *audioqueue;
     GstElement *audioconvert;
-    GstElement *lamemp3enc;
-    GstElement *avimux;
+    GstElement *videorate;
+    GstElement *vorbisenc;
+    GstElement *oggmux;
     GstElement *filesink;
     GMainLoop *loop;
     GstBus *bus;
