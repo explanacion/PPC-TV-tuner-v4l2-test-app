@@ -186,19 +186,19 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 		connect(m_freq, SIGNAL(lostFocus()), SLOT(freqChanged()));
 		connect(m_freq, SIGNAL(returnPressed()), SLOT(freqChanged()));
 		updateFreq();
-		if (m_tuner.capability & V4L2_TUNER_CAP_LOW)
-			addLabel("Frequency (kHz)");
-		else
-			addLabel("Frequency (MHz)");
+        if (m_tuner.capability & V4L2_TUNER_CAP_LOW)
+            addLabel("Frequency (kHz)");
+        else
+            addLabel("Frequency (MHz)");
 		addWidget(m_freq);
 
 		if (!m_tuner.capability & V4L2_TUNER_CAP_LOW) {
-			addLabel("Frequency Table");
+            //addLabel("Frequency Table");
 			m_freqTable = new QComboBox(parent);
 			for (int i = 0; v4l2_channel_lists[i].name; i++) {
 				m_freqTable->addItem(v4l2_channel_lists[i].name);
 			}
-			addWidget(m_freqTable);
+            addWidget(m_freqTable);
 			connect(m_freqTable, SIGNAL(activated(int)), SLOT(freqTableChanged(int)));
 
 			addLabel("Channels");
@@ -245,7 +245,7 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 	}
 
     // new code - create ListBox with the list of preset channels with frequencies
-    QHBoxLayout *chanlayout = new QHBoxLayout(parent);
+    QHBoxLayout *chanlayout = new QHBoxLayout();
     chantable = new QTableWidget(parent);
     chanlayout->addWidget(chantable);
     chantable->insertColumn(chantable->columnCount());
