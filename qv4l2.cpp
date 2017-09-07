@@ -741,7 +741,9 @@ void ApplicationWindow::capStart2(bool start)
             // set params
             g_object_set(G_OBJECT(v4l2src), "device", "/dev/video0", NULL);
             g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
-            g_object_set(G_OBJECT(filesink), "location","/home/out/testout.ogg", NULL);
+            // get filename
+            QString saveto = QFileDialog::getSaveFileName(this, tr("Save video to..."),"~/record.ogg",tr("(*.ogg)"));
+            g_object_set(G_OBJECT(filesink), "location",saveto, NULL);
             g_object_set(G_OBJECT(theoraenc), "quality",63,NULL);
 
             GstCaps *vcaps;
@@ -830,7 +832,9 @@ void ApplicationWindow::capStart2(bool start)
             g_object_set(G_OBJECT(v4l2radio), "frequency", sfreq, NULL);
 
             g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
-            g_object_set(G_OBJECT(filesink), "location","/home/out/testout.wav", NULL);
+            QString saveto = QFileDialog::getSaveFileName(this, tr("Save video to..."),"record.wav",tr("(*.wav)"));
+
+            g_object_set(G_OBJECT(filesink), "location",saveto.toStdString().c_str(), NULL);
 
             gst_bin_add_many(GST_BIN(pline2), alsasrc, audioconvert, audioresample, wavenc, filesink, NULL);
             gst_element_link_many(alsasrc, audioconvert, audioresample, wavenc, filesink, NULL);
