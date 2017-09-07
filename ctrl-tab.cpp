@@ -87,7 +87,7 @@ void ApplicationWindow::addTabs()
 		qctrl.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
 	}
 	if (qctrl.id == V4L2_CTRL_FLAG_NEXT_CTRL) {
-		strcpy((char *)qctrl.name, "User Controls");
+        strcpy((char *)qctrl.name, "User Controls");
 		qctrl.id = V4L2_CTRL_CLASS_USER | 1;
 		qctrl.type = V4L2_CTRL_TYPE_CTRL_CLASS;
 		m_ctrlMap[qctrl.id] = qctrl;

@@ -51,7 +51,9 @@
 #include <libv4l2.h>
 
 #include <QDebug>
-
+#include <QThreadPool>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 
 
 ApplicationWindow::ApplicationWindow() :
@@ -170,7 +172,8 @@ void ApplicationWindow::setDevice(const QString &device, bool rawOpen)
 
     QWidget *w = new QWidget(m_tabs);
     m_genTab = new GeneralTab(device, *this, 4, w);
-    m_tabs->addTab(w, "General");
+    m_tabs->addTab(w, "TV"); // new in 2017 rename General tab to TV
+
     addTabs();
     if (caps() & (V4L2_CAP_VBI_CAPTURE | V4L2_CAP_SLICED_VBI_CAPTURE)) {
         w = new QWidget(m_tabs);
@@ -185,6 +188,93 @@ void ApplicationWindow::setDevice(const QString &device, bool rawOpen)
     m_tabs->setFocus();
     m_convertData = v4lconvert_create(fd());
     m_capStartAct->setEnabled(fd() >= 0 && !m_genTab->isRadio());
+
+    // new in 2017 add a radio tab
+    QWidget *rwtab = new QWidget(m_tabs);
+    m_tabs->addTab(rwtab, "FM radio");
+    //QGridLayout *grid = new QGridLayout(rwtab);
+    //grid->setSpacing(3);
+    QVBoxLayout *vbox = new QVBoxLayout(rwtab);
+    QLabel *lw = new QLabel(rwtab);
+    lw->setText("Device: /dev/radio0");
+
+    linefreq = new QLineEdit(rwtab);
+    vbox->addWidget(lw);
+    vbox->addWidget(linefreq);
+    radiofreqtable = new QTableWidget();
+    vbox->addWidget(radiofreqtable);
+    radiofreqtable->insertColumn(radiofreqtable->columnCount());
+    radiofreqtable->setHorizontalHeaderItem(0,new QTableWidgetItem("Station"));
+    radiofreqtable->insertColumn(radiofreqtable->columnCount());
+    radiofreqtable->setHorizontalHeaderItem(1,new QTableWidgetItem("Frequency, MHz"));
+    radiofreqtable->setColumnWidth(0,200);
+    radiofreqtable->setColumnWidth(1,200);
+    QStringList stations;
+    QStringList frequencies;
+    stations.append("Comedy"); frequencies.append("92.7");
+    stations.append("Energy"); frequencies.append("103.3");
+    stations.append("Avtoradio"); frequencies.append("105.2");
+    stations.append("Detskoe"); frequencies.append("97.0");
+    stations.append("Russkie pesni"); frequencies.append("95.0");
+    stations.append("Dorozhnoe"); frequencies.append("100.8");
+    stations.append("Retro FM"); frequencies.append("98.7");
+    stations.append("Shanson"); frequencies.append("101.7");
+    stations.append("Biznes FM"); frequencies.append("104.2");
+    stations.append("Love radio"); frequencies.append("101.3");
+    stations.append("Evropa+"); frequencies.append("103.8");
+    stations.append("Russkoe radio"); frequencies.append("105.8");
+    stations.append("Radio MIR"); frequencies.append("97.4");
+    stations.append("Radio Dacha"); frequencies.append("104.6");
+    stations.append("Komsomolskaya pravda"); frequencies.append("107.1");
+
+
+    for (int i = 0; i < stations.length(); i++)
+    {
+        radiofreqtable->insertRow(radiofreqtable->rowCount());
+        radiofreqtable->setItem(i,0, new QTableWidgetItem(stations[i]));
+        radiofreqtable->setItem(i,1,new QTableWidgetItem(frequencies[i]));
+    }
+
+    radiofreqtable->setMinimumWidth(400);
+
+    connect(radiofreqtable,SIGNAL(cellClicked(int,int)),this,SLOT(setradiofreq(int, int)));
+    connect((QObject*)radiofreqtable->verticalHeader(),SIGNAL(sectionClicked(int)),this,SLOT(setrowradiofreq(int)));
+
+    // if a tab was changed
+    connect(m_tabs, SIGNAL(currentChanged(int)), this, SLOT(tabchanged()));
+}
+
+// new in 2017 tab changed
+void ApplicationWindow::tabchanged() {
+    int tab = m_tabs->currentIndex();
+    if (tab == 2)
+    {
+        // radio tab
+        // disable screenshot button
+    }
+}
+
+// new in 2017
+void ApplicationWindow::setradiofreq(int row, int col) {
+    QString selectedvalue = radiofreqtable->item(row,1)->text();
+    linefreq->setText(selectedvalue);
+//    // if we record video, stop it
+//    if (gst_element_get_state(pline,NULL,NULL,-1) == GST_STATE_PLAYING)
+//    {
+//        stopCapture2();
+//    }
+//    // set freq here in tuner
+//    loop = g_main_loop_new(NULL,FALSE);
+//    pline = gst_pipeline_new("tuneraudioset");
+//    v4l2radio = gst_element_factory_make("v4l2radio","v4l2radio");
+//    g_object_set(G_OBJECT(v4l2radio), "device", "/dev/radio0", NULL);
+//    g_object_set(G_OBJECT(v4l2radio), "frequency", selectedvalue, NULL);
+//    // write audio
+
+}
+
+void ApplicationWindow::setrowradiofreq(int r) {
+    setradiofreq(r, 1);
 }
 
 void ApplicationWindow::opendev()
@@ -632,81 +722,136 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 
 void ApplicationWindow::capStart2(bool start)
 {
-    if (start) {
-        loop = g_main_loop_new(NULL,FALSE);
-        pline = gst_pipeline_new("tunervid");
-        v4l2src = gst_element_factory_make("v4l2src","v4l2src");
-        videoqueue = gst_element_factory_make("queue","queue for video");
-        alsasrc = gst_element_factory_make("alsasrc","alsasrc");
-        audioqueue = gst_element_factory_make("queue","queue for audio");
-        videoconvert = gst_element_factory_make("videoconvert","videoconvert");
-        audioconvert = gst_element_factory_make("audioconvert","audioconvert");
-        videorate = gst_element_factory_make("videorate","videorate");
-        theoraenc = gst_element_factory_make("theoraenc","theoraenc");
-        vorbisenc = gst_element_factory_make("vorbisenc","vorbisenc");
-        oggmux = gst_element_factory_make("oggmux","oggmux");
-        filesink = gst_element_factory_make("filesink","filesink");
-        // set params
-        g_object_set(G_OBJECT(v4l2src), "device", "/dev/video0", NULL);
-        g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
-        g_object_set(G_OBJECT(filesink), "location","/home/out/testout.ogg", NULL);
-        g_object_set(G_OBJECT(theoraenc), "quality",63,NULL);
+    int tab = m_tabs->currentIndex();
+    if (tab == 0) {
+        if (start) {
+            loop = g_main_loop_new(NULL,FALSE);
+            pline = gst_pipeline_new("tunervid");
+            v4l2src = gst_element_factory_make("v4l2src","v4l2src");
+            videoqueue = gst_element_factory_make("queue","queue for video");
+            alsasrc = gst_element_factory_make("alsasrc","alsasrc");
+            audioqueue = gst_element_factory_make("queue","queue for audio");
+            videoconvert = gst_element_factory_make("videoconvert","videoconvert");
+            audioconvert = gst_element_factory_make("audioconvert","audioconvert");
+            videorate = gst_element_factory_make("videorate","videorate");
+            theoraenc = gst_element_factory_make("theoraenc","theoraenc");
+            vorbisenc = gst_element_factory_make("vorbisenc","vorbisenc");
+            oggmux = gst_element_factory_make("oggmux","oggmux");
+            filesink = gst_element_factory_make("filesink","filesink");
+            // set params
+            g_object_set(G_OBJECT(v4l2src), "device", "/dev/video0", NULL);
+            g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
+            g_object_set(G_OBJECT(filesink), "location","/home/out/testout.ogg", NULL);
+            g_object_set(G_OBJECT(theoraenc), "quality",63,NULL);
 
-        GstCaps *vcaps;
+            GstCaps *vcaps;
 
-        vcaps = gst_caps_new_simple ("video/x-raw",
-          "bpp",G_TYPE_INT,24,
-          "depth",G_TYPE_INT,24,
-           "width", G_TYPE_INT, 640,
-           "height", G_TYPE_INT, 480,
-           NULL);
+            vcaps = gst_caps_new_simple ("video/x-raw",
+              "bpp",G_TYPE_INT,24,
+              "depth",G_TYPE_INT,24,
+               "width", G_TYPE_INT, 640,
+               "height", G_TYPE_INT, 480,
+               NULL);
 
-        //GstPad *sinkpad;
-//        sinkpad = gst_element_get_static_pad(videoconvert,"sink");
-//        gst_pad_set_caps(sinkpad,caps);
+            //GstPad *sinkpad;
+    //        sinkpad = gst_element_get_static_pad(videoconvert,"sink");
+    //        gst_pad_set_caps(sinkpad,caps);
 
-        //gboolean vlink_ok;
-        //vlink_ok = gst_element_link_filtered(videoconvert,theoraenc, vcaps);
-        //gst_caps_unref (vcaps);
+            //gboolean vlink_ok;
+            //vlink_ok = gst_element_link_filtered(videoconvert,theoraenc, vcaps);
+            //gst_caps_unref (vcaps);
 
-        //g_object_set(G_OBJECT(theoraenc), ""
+            //g_object_set(G_OBJECT(theoraenc), ""
 
-        gst_bin_add_many(GST_BIN (pline), v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, alsasrc, audioqueue, audioconvert, vorbisenc, filesink, NULL);
+            gst_bin_add_many(GST_BIN (pline), v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, alsasrc, audioqueue, audioconvert, vorbisenc, filesink, NULL);
 
-        gst_element_link_many(v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, NULL);
-        gst_element_link_many(alsasrc, audioqueue, audioconvert, vorbisenc, oggmux, NULL);
-        gst_element_link(oggmux,filesink);
+            gst_element_link_many(v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, NULL);
+            gst_element_link_many(alsasrc, audioqueue, audioconvert, vorbisenc, oggmux, NULL);
+            gst_element_link(oggmux,filesink);
 
-        GstCaps *caps;
-        caps = gst_caps_from_string("audio/x-raw,format=S16LE,rate=44100,channels=1");
+            GstCaps *caps;
+            caps = gst_caps_from_string("audio/x-raw,format=S16LE,rate=44100,channels=1");
 
-        gboolean link_ok;
-        link_ok = gst_element_link_filtered (alsasrc, audioqueue, caps);
-        gst_caps_unref (caps);
-
-
-        bus = gst_pipeline_get_bus(GST_PIPELINE(pline));
-        gst_bus_add_watch(bus, bus_call, loop);
-        gst_object_unref(bus);
-
-        gst_element_set_state(pline, GST_STATE_PLAYING);
-        g_main_loop_run(loop);
+            gboolean link_ok;
+            link_ok = gst_element_link_filtered (alsasrc, audioqueue, caps);
+            gst_caps_unref (caps);
 
 
-        // build a gstreamer chain
-        //GstElement *v4l2 = gst_element_factory_make("v4l2src","video4linuxd");
-        //if (!v4l2) {
-        //    g_print("Не удалось создать элемент типа 'fakesrc'\n");
-        //    return -1;
-        //}
-        //gchar *name; g_object_get (G_OBJECT (v4l2), "name", &name, NULL);
-        //g_print ("Имя элемента: '%s'.\n", name);
-        //g_free (name);
-        //gst_element_set_state(v4l2,GST_STATE_NULL);
+            bus = gst_pipeline_get_bus(GST_PIPELINE(pline));
+            gst_bus_add_watch(bus, bus_call, loop);
+            gst_object_unref(bus);
 
+            gst_element_set_state(pline, GST_STATE_PLAYING);
+            g_main_loop_run(loop);
+
+
+            // build a gstreamer chain
+            //GstElement *v4l2 = gst_element_factory_make("v4l2src","video4linuxd");
+            //if (!v4l2) {
+            //    g_print("Не удалось создать элемент типа 'fakesrc'\n");
+            //    return -1;
+            //}
+            //gchar *name; g_object_get (G_OBJECT (v4l2), "name", &name, NULL);
+            //g_print ("Имя элемента: '%s'.\n", name);
+            //g_free (name);
+            //gst_element_set_state(v4l2,GST_STATE_NULL);
+
+        }
+        else {
+            stopCapture2();
+        }
     }
-    else {
-        stopCapture2();
+    else if (tab == 2)
+    {
+        // radio tab
+        if (start) {
+            // get frequency
+            double curfreq = linefreq->text().toDouble();
+            guint sfreq = curfreq*1000*1000;
+            qDebug() << sfreq;
+            if (sfreq == 0)
+            {
+                sfreq = 97.2*1000*1000;
+            }
+            if (sfreq > 108000000)
+                sfreq = 107100000;
+
+            // write audio
+            loop2 = g_main_loop_new(NULL,FALSE);
+            pline2 = gst_pipeline_new("tuneraudiorecord");
+            alsasrc = gst_element_factory_make("alsasrc","alsasrc");
+            audioconvert = gst_element_factory_make("audioconvert","audioconvert");
+            audioresample = gst_element_factory_make("audioresample","audioresample");
+            wavenc = gst_element_factory_make("wavenc","wavenc");
+            filesink = gst_element_factory_make("filesink","filesink");
+
+            v4l2radio = gst_element_factory_make("v4l2radio","v4l2radio");
+            g_object_set(G_OBJECT(v4l2radio), "device", "/dev/radio0", NULL);
+            g_object_set(G_OBJECT(v4l2radio), "frequency", sfreq, NULL);
+
+            g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
+            g_object_set(G_OBJECT(filesink), "location","/home/out/testout.wav", NULL);
+
+            gst_bin_add_many(GST_BIN(pline2), alsasrc, audioconvert, audioresample, wavenc, filesink, NULL);
+            gst_element_link_many(alsasrc, audioconvert, audioresample, wavenc, filesink, NULL);
+            bus = gst_pipeline_get_bus(GST_PIPELINE(pline2));
+            gst_bus_add_watch(bus, bus_call, loop2);
+            gst_object_unref(bus);
+
+            pline = gst_pipeline_new("tuneraudiosetfreq");
+            gst_bin_add(GST_BIN(pline),v4l2radio);
+            gst_element_set_state(pline, GST_STATE_PLAYING);
+            gst_element_link(pline,pline2);
+
+            gst_element_set_state(pline2, GST_STATE_PLAYING);
+            g_main_loop_run(loop2);
+        }
+        else {
+            gst_element_send_event(pline2,gst_event_new_eos());
+            gst_element_set_state(pline,GST_STATE_NULL);
+            gst_element_set_state(pline2,GST_STATE_NULL);
+            g_main_loop_quit(loop2);
+        }
     }
 }
 
@@ -1026,7 +1171,8 @@ int main(int argc, char **argv)
 
     a.setWindowIcon(QIcon(":/qv4l2.png"));
     g_mw = new ApplicationWindow();
-    g_mw->setWindowTitle("V4L2 Test Bench");
+    // new in 2017 rename app title
+    g_mw->setWindowTitle("KPPC TV&FM on-air broadcasting monitor");
     for (i = 1; i < argc; i++) {
         const char *arg = a.argv()[i];
 

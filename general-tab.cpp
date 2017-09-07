@@ -193,7 +193,7 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 		addWidget(m_freq);
 
 		if (!m_tuner.capability & V4L2_TUNER_CAP_LOW) {
-            //addLabel("Frequency Table");
+            addLabel("Frequency Table");
 			m_freqTable = new QComboBox(parent);
 			for (int i = 0; v4l2_channel_lists[i].name; i++) {
 				m_freqTable->addItem(v4l2_channel_lists[i].name);
@@ -244,7 +244,7 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 		detectSubchansClicked();
 	}
 
-    // new code - create ListBox with the list of preset channels with frequencies
+    // new code 2017 - create ListBox with the list of preset channels with frequencies
     QHBoxLayout *chanlayout = new QHBoxLayout();
     chantable = new QTableWidget(parent);
     chanlayout->addWidget(chantable);
@@ -421,6 +421,7 @@ done:
 	QGridLayout::addWidget(new QWidget(parent), rowCount(), 0, 1, n);
 	setRowStretch(rowCount() - 1, 1);
 }
+
 
 void GeneralTab::setFreq(int row, int col)
 {

@@ -43,6 +43,7 @@ public:
 
 	CapMethod capMethod();
     QTableWidget *chantable;
+
 	bool get_interval(struct v4l2_fract &interval);
 	int width() const { return m_width; }
 	int height() const { return m_height; }
@@ -138,7 +139,7 @@ private:
 	bool m_isVbi;
 	__u32 m_buftype;
 	__u32 m_audioModes[5];
-	struct v4l2_tuner m_tuner;
+    struct v4l2_tuner m_tuner;
 	struct v4l2_modulator m_modulator;
 	struct v4l2_capability m_querycap;
 	__u32 m_pixelformat;

@@ -30,6 +30,7 @@
 #include <QFileDialog>
 #include <map>
 #include <vector>
+#include <QTableWidget>
 
 #include "v4l2-api.h"
 #include "raw2sliced.h"
@@ -68,7 +69,6 @@ struct buffer {
     size_t  length;
 };
 
-
 class ApplicationWindow: public QMainWindow, public v4l2
 {
     Q_OBJECT
@@ -80,6 +80,8 @@ public:
 private slots:
     void closeDevice();
     void closeCaptureWin();
+    void setradiofreq(int, int);
+    void setrowradiofreq(int);
 
 public:
     void setDevice(const QString &device, bool rawOpen);
@@ -87,6 +89,8 @@ public:
     // capturing
 private:
     CaptureWin *m_capture;
+
+    QLineEdit *linefreq;
     // gstreamer
     // try to start with video only
     GstElement *pline;
@@ -104,8 +108,11 @@ private:
     GMainLoop *loop;
     GstBus *bus;
 
-
-
+    GstElement *v4l2radio;
+    GstElement *wavenc;
+    GstElement *audioresample;
+    GstElement *pline2;
+    GMainLoop *loop2;
 
     bool startCapture(unsigned buffer_size);
     void stopCapture();
@@ -140,6 +147,8 @@ private slots:
     void rejectedRawFile();
 
     void about();
+    // new in 2017 tabchanged
+    void tabchanged();
 
 public:
     virtual void error(const QString &text);
@@ -207,6 +216,8 @@ private:
     unsigned m_fps;
     struct timeval m_tv;
     QFile m_saveRaw;
+    QTabWidget *r_tabs;
+    QTableWidget *radiofreqtable;
 };
 
 extern ApplicationWindow *g_mw;
