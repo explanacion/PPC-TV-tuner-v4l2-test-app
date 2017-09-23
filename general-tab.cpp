@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <errno.h>
 
-GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) :
+GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent, QProgressBar *pl1, QProgressBar *pr1) :
 	QGridLayout(parent),
 	v4l2(fd),
 	m_row(0),
@@ -245,6 +245,9 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent) 
 	}
 
     // new code 2017 - create ListBox with the list of preset channels with frequencies
+    pg1left = pl1;
+    pg1right = pr1;
+
     QHBoxLayout *chanlayout = new QHBoxLayout();
     chantable = new QTableWidget(parent);
     chanlayout->addWidget(chantable);
@@ -421,22 +424,17 @@ done:
 	QGridLayout::addWidget(new QWidget(parent), rowCount(), 0, 1, n);
 	setRowStretch(rowCount() - 1, 1);
 
-    progbar1left = new QProgressBar();
-    progbar1left->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
-    progbar1right = new QProgressBar();
-    progbar1right->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
-
     proglabel = new QLabel();
     proglabel->setText("Audio Level");
     QHBoxLayout *proglayout = new QHBoxLayout();
     QVBoxLayout *channelsproglayout = new QVBoxLayout();
-    channelsproglayout->addWidget(progbar1left);
-    channelsproglayout->addWidget(progbar1right);
+
+    channelsproglayout->addWidget(pg1left);
+    channelsproglayout->addWidget(pg1right);
 
     proglayout->addWidget(proglabel);
     proglayout->addLayout(channelsproglayout);
     addLayout(proglayout,8,1);
-
 }
 
 

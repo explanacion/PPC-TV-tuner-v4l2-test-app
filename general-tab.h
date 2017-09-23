@@ -39,15 +39,14 @@ class GeneralTab: public QGridLayout, public v4l2
 	Q_OBJECT
 
 public:
-	GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent = 0);
+    GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent = 0, QProgressBar *pl1 = 0, QProgressBar *pr1 = 0);
 	virtual ~GeneralTab() {}
 
 	CapMethod capMethod();
     QTableWidget *chantable;
+    QProgressBar *pg1left;
+    QProgressBar *pg1right;
     QLabel *proglabel;
-    QProgressBar *progbar1left;
-    QProgressBar *progbar1right;
-    GetProgBarPointer *getpbpointer;
 
 	bool get_interval(struct v4l2_fract &interval);
 	int width() const { return m_width; }

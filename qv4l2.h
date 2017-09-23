@@ -92,7 +92,7 @@ private slots:
 
 public:
     void setDevice(const QString &device, bool rawOpen);
-
+    GetProgBarPointer *getpbpointer;
     // capturing
 private:
     CaptureWin *m_capture;
@@ -121,8 +121,6 @@ private:
     GstElement *pline2;
     GMainLoop *loop2;
     GstElement *level;
-
-    GetProgBarPointer *getpbpointer;
 
     bool startCapture(unsigned buffer_size);
     void stopCapture();
@@ -168,6 +166,9 @@ public:
     void errorCtrl(unsigned id, int err, const QString &v);
     void info(const QString &info);
     virtual void closeEvent(QCloseEvent *event);
+
+    QProgressBar *progbar1left;
+    QProgressBar *progbar1right;
 
 private:
     void addWidget(QGridLayout *grid, QWidget *w, Qt::Alignment align = Qt::AlignLeft);

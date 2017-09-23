@@ -101,6 +101,19 @@ ApplicationWindow::ApplicationWindow() :
     connect(m_saveRawAct, SIGNAL(toggled(bool)), this, SLOT(capStart2(bool)));
     //connect(m_saveRawAct, SIGNAL(toggled(bool)), this, SLOT(saveRaw(bool)));
 
+    progbar1left = new QProgressBar();
+    progbar1right = new QProgressBar();
+    progbar1left->setRange(-50,0);
+    progbar1right->setRange(-50,0);
+    progbar1left->setValue(progbar1left->minimum());
+    progbar1right->setValue(progbar1right->minimum());
+    progbar1left->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
+    progbar1right->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
+    progbar1left->setFormat("%v dB");
+    progbar1right->setFormat("%v dB");
+    progbar1left->setTextVisible(false);
+    progbar1right->setTextVisible(false);
+
     gst_init(NULL, NULL);
 
     m_showFramesAct = new QAction(QIcon(":/video-television.png"), "Show &Frames", this);
@@ -174,7 +187,7 @@ void ApplicationWindow::setDevice(const QString &device, bool rawOpen)
     connect(m_capture, SIGNAL(close()), this, SLOT(closeCaptureWin()));
 
     QWidget *w = new QWidget(m_tabs);
-    m_genTab = new GeneralTab(device, *this, 4, w);
+    m_genTab = new GeneralTab(device, *this, 4, w, progbar1left, progbar1right);
     m_tabs->addTab(w, "TV"); // new in 2017 rename General tab to TV
 
     addTabs();
@@ -245,7 +258,6 @@ void ApplicationWindow::setDevice(const QString &device, bool rawOpen)
 
     // if a tab was changed
     connect(m_tabs, SIGNAL(currentChanged(int)), this, SLOT(tabchanged()));
-
 
     progbar2left = new QProgressBar();
     progbar2right = new QProgressBar();
@@ -724,7 +736,45 @@ void ApplicationWindow::closeCaptureWin()
 }
 
 // 2017
+static gboolean message_handlermain(GstBus * bus, GstMessage * message, gpointer pbpointer)
+{
+    if (message->type == GST_MESSAGE_ELEMENT) {
+        const GstStructure *s = gst_message_get_structure (message);
+        const gchar *name = gst_structure_get_name (s);
+        if (strcmp (name, "level") == 0) {
 
+            gint channels;
+            gdouble peak_dB;
+            const GValue *array_val;
+            GValueArray *peak_arr;
+            const GValue *value;
+            gint i;
+            array_val = gst_structure_get_value (s, "peak");
+            peak_arr = (GValueArray *) g_value_get_boxed (array_val);
+            channels = peak_arr->n_values;
+            for (i = 0; i < channels; ++i) {
+                value = g_value_array_get_nth (peak_arr, i);
+                peak_dB = g_value_get_double (value);
+                GetProgBarPointer* pbp = static_cast<GetProgBarPointer*>(pbpointer);
+                QProgressBar* progbar2left = static_cast<QProgressBar*>(pbp->leftbar);
+                QProgressBar* progbar2right = static_cast<QProgressBar*>(pbp->rightbar);
+                if (i == 0) {
+                    progbar2left->setTextVisible(true);
+                    progbar2left->setValue(peak_dB);
+                }
+                else if (i == 1) {
+                    progbar2right->setTextVisible(true);
+                    progbar2right->setValue(peak_dB);
+                }
+            }
+
+        }
+    }
+    return TRUE;
+}
+
+
+// catch errors
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 {
     GMainLoop *loop = (GMainLoop *) data;
@@ -837,13 +887,15 @@ void ApplicationWindow::capStart2(bool start)
             vorbisenc = gst_element_factory_make("vorbisenc","vorbisenc");
             oggmux = gst_element_factory_make("oggmux","oggmux");
             filesink = gst_element_factory_make("filesink","filesink");
+            level = gst_element_factory_make ("level", "level");
             // set params
             g_object_set(G_OBJECT(v4l2src), "device", "/dev/video0", NULL);
             g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
             // get filename
             QString saveto = QFileDialog::getSaveFileName(this, tr("Save video to..."),"~/record.ogg",tr("(*.ogg)"));
-            g_object_set(G_OBJECT(filesink), "location",saveto, NULL);
+            g_object_set(G_OBJECT(filesink), "location",saveto.toStdString().c_str(), NULL);
             g_object_set(G_OBJECT(theoraenc), "quality",63,NULL);
+            g_object_set (G_OBJECT (level), "post-messages", TRUE, NULL);
 
             GstCaps *vcaps;
 
@@ -864,10 +916,10 @@ void ApplicationWindow::capStart2(bool start)
 
             //g_object_set(G_OBJECT(theoraenc), ""
 
-            gst_bin_add_many(GST_BIN (pline), v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, alsasrc, audioqueue, audioconvert, vorbisenc, filesink, NULL);
+            gst_bin_add_many(GST_BIN (pline), v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, alsasrc, audioqueue, audioconvert, level, vorbisenc, filesink, NULL);
 
             gst_element_link_many(v4l2src, videoqueue, videoconvert, videorate, theoraenc, oggmux, NULL);
-            gst_element_link_many(alsasrc, audioqueue, audioconvert, vorbisenc, oggmux, NULL);
+            gst_element_link_many(alsasrc, audioqueue, audioconvert, level, vorbisenc, oggmux, NULL);
             gst_element_link(oggmux,filesink);
 
             GstCaps *caps;
@@ -879,7 +931,12 @@ void ApplicationWindow::capStart2(bool start)
 
 
             bus = gst_pipeline_get_bus(GST_PIPELINE(pline));
-            gst_bus_add_watch(bus, bus_call, loop);
+            //gst_bus_add_watch(bus, bus_call, loop);
+            getpbpointer = new GetProgBarPointer();
+            getpbpointer->leftbar = progbar1left;
+            getpbpointer->rightbar = progbar1right;
+
+            gst_bus_add_watch(bus,message_handlermain,(gpointer)getpbpointer);
             gst_object_unref(bus);
 
             gst_element_set_state(pline, GST_STATE_PLAYING);
@@ -899,6 +956,11 @@ void ApplicationWindow::capStart2(bool start)
 
         }
         else {
+            delete getpbpointer;
+            progbar1left->setValue(progbar1left->minimum());
+            progbar1right->setValue(progbar1right->minimum());
+            progbar1left->setTextVisible(false);
+            progbar1right->setTextVisible(false);
             stopCapture2();
         }
     }
@@ -967,6 +1029,7 @@ void ApplicationWindow::capStart2(bool start)
             gst_element_set_state(pline2,GST_STATE_NULL);
             progbar2left->setValue(progbar2left->minimum());
             progbar2right->setValue(progbar2right->minimum());
+            delete getpbpointer;
             g_main_loop_quit(loop2);
         }
     }
