@@ -27,6 +27,7 @@
 #include "qv4l2.h"
 #include "v4l2-api.h"
 #include <QTableWidget> // for channels table
+#include <QProgressBar> // for a level
 
 class QComboBox;
 class QCheckBox;
@@ -43,6 +44,10 @@ public:
 
 	CapMethod capMethod();
     QTableWidget *chantable;
+    QLabel *proglabel;
+    QProgressBar *progbar1left;
+    QProgressBar *progbar1right;
+    GetProgBarPointer *getpbpointer;
 
 	bool get_interval(struct v4l2_fract &interval);
 	int width() const { return m_width; }

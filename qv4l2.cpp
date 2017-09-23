@@ -54,7 +54,10 @@
 #include <QThreadPool>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <math.h>
 
+int leftchan = 0;
+int rightchan = 0;
 
 ApplicationWindow::ApplicationWindow() :
     m_capture(NULL),
@@ -242,6 +245,35 @@ void ApplicationWindow::setDevice(const QString &device, bool rawOpen)
 
     // if a tab was changed
     connect(m_tabs, SIGNAL(currentChanged(int)), this, SLOT(tabchanged()));
+
+
+    progbar2left = new QProgressBar();
+    progbar2right = new QProgressBar();
+
+    progbar2left->setRange(-50,0);
+    //progbar2left->setInvertedAppearance(true);
+    progbar2left->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
+    progbar2left->setValue(progbar2left->minimum());
+    progbar2left->setFormat("%v dB");
+    progbar2left->setTextVisible(false);
+
+
+    progbar2right->setRange(-50,0);
+    progbar2right->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
+    progbar2right->setFormat("%v dB");
+    progbar2right->setValue(progbar2right->minimum());
+    progbar2right->setTextVisible(false);
+
+    proglabel = new QLabel();
+    proglabel->setText("Audio Level, peak");
+    QHBoxLayout *proglayout = new QHBoxLayout();
+    QVBoxLayout *channelsproglayout = new QVBoxLayout();
+    channelsproglayout->addWidget(progbar2left);
+    channelsproglayout->addWidget(progbar2right);
+    proglayout->addWidget(proglabel);
+    proglayout->addLayout(channelsproglayout);
+    vbox->addLayout(proglayout);
+
 }
 
 // new in 2017 tab changed
@@ -720,6 +752,73 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
     return TRUE;
 }
 
+static gboolean message_handler (GstBus * bus, GstMessage * message, gpointer pbpointer)
+{
+    if (message->type == GST_MESSAGE_ELEMENT) {
+        const GstStructure *s = gst_message_get_structure (message);
+        const gchar *name = gst_structure_get_name (s);
+        if (strcmp (name, "level") == 0) {
+            gint channels;
+            GstClockTime endtime;
+            gdouble rms_dB;
+            gdouble peak_dB; //, decay_dB;
+            //gdouble rms;
+            const GValue *array_val;
+            const GValue *value;
+            GValueArray *rms_arr, *peak_arr, *decay_arr;
+            gint i;
+            if (!gst_structure_get_clock_time (s, "endtime", &endtime))
+                g_warning ("Could not parse endtime");
+            /* the values are packed into GValueArrays with the value per channel */
+            array_val = gst_structure_get_value (s, "rms");
+            rms_arr = (GValueArray *) g_value_get_boxed (array_val);
+            array_val = gst_structure_get_value (s, "peak");
+            peak_arr = (GValueArray *) g_value_get_boxed (array_val);
+            array_val = gst_structure_get_value (s, "decay");
+            decay_arr = (GValueArray *) g_value_get_boxed (array_val);
+            /* we can get the number of channels as the length of any of the value
+                   * arrays */
+            channels = rms_arr->n_values;
+            //g_print ("endtime: %" GST_TIME_FORMAT ", channels: %d\n", GST_TIME_ARGS (endtime), channels);
+            for (i = 0; i < channels; ++i) {
+                //g_print ("channel %d\n", i);
+                value = g_value_array_get_nth (rms_arr, i);
+                rms_dB = g_value_get_double (value);
+                value = g_value_array_get_nth (peak_arr, i);
+                peak_dB = g_value_get_double (value);
+
+                GetProgBarPointer* pbp = static_cast<GetProgBarPointer*>(pbpointer);
+
+                QProgressBar* progbar2left = static_cast<QProgressBar*>(pbp->leftbar);
+                QProgressBar* progbar2right = static_cast<QProgressBar*>(pbp->rightbar);
+                // set variables for the indicator
+                if (i == 0) {
+                    //g_print("%f",rms_dB);
+                    progbar2left->setTextVisible(true);
+                    //g_print("%f\n",rms_dB);
+                    progbar2left->setValue(peak_dB);
+
+                }
+                if (i == 1) {
+                    progbar2right->setTextVisible(true);
+                    progbar2right->setValue(peak_dB);
+                }
+
+                //value = g_value_array_get_nth (decay_arr, i);
+                //decay_dB = g_value_get_double (value);
+                //g_print ("    RMS: %f dB, peak: %f dB, decay: %f dB\n", rms_dB, peak_dB, decay_dB);
+                /* converting from dB to normal gives us a value between 0.0 and 1.0 */
+                //rms = pow (10, rms_dB / 20);
+                //g_print ("    normalized rms value: %f\n", rms);
+
+
+            }
+        }
+    }
+    return TRUE;
+}
+
+
 void ApplicationWindow::capStart2(bool start)
 {
     int tab = m_tabs->currentIndex();
@@ -810,7 +909,6 @@ void ApplicationWindow::capStart2(bool start)
             // get frequency
             double curfreq = linefreq->text().toDouble();
             guint sfreq = curfreq*1000*1000;
-            qDebug() << sfreq;
             if (sfreq == 0)
             {
                 sfreq = 97.2*1000*1000;
@@ -826,20 +924,31 @@ void ApplicationWindow::capStart2(bool start)
             audioresample = gst_element_factory_make("audioresample","audioresample");
             wavenc = gst_element_factory_make("wavenc","wavenc");
             filesink = gst_element_factory_make("filesink","filesink");
+            level = gst_element_factory_make ("level", "level");
+            g_assert (level);
 
             v4l2radio = gst_element_factory_make("v4l2radio","v4l2radio");
             g_object_set(G_OBJECT(v4l2radio), "device", "/dev/radio0", NULL);
             g_object_set(G_OBJECT(v4l2radio), "frequency", sfreq, NULL);
 
             g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
+            g_object_set (G_OBJECT (level), "post-messages", TRUE, NULL);
+
             QString saveto = QFileDialog::getSaveFileName(this, tr("Save video to..."),"record.wav",tr("(*.wav)"));
 
             g_object_set(G_OBJECT(filesink), "location",saveto.toStdString().c_str(), NULL);
 
-            gst_bin_add_many(GST_BIN(pline2), alsasrc, audioconvert, audioresample, wavenc, filesink, NULL);
-            gst_element_link_many(alsasrc, audioconvert, audioresample, wavenc, filesink, NULL);
+            gst_bin_add_many(GST_BIN(pline2), alsasrc, audioconvert, level, audioresample, wavenc, filesink, NULL);
+            gst_element_link_many(alsasrc, audioconvert, level, audioresample, wavenc, filesink, NULL);
             bus = gst_pipeline_get_bus(GST_PIPELINE(pline2));
+            getpbpointer = new GetProgBarPointer();
+            getpbpointer->leftbar = (gpointer)progbar2left;
+            getpbpointer->rightbar = (gpointer)progbar2right;
+            guint watch_id = gst_bus_add_watch (bus, message_handler, (gpointer)getpbpointer);
             gst_bus_add_watch(bus, bus_call, loop2);
+
+
+
             gst_object_unref(bus);
 
             pline = gst_pipeline_new("tuneraudiosetfreq");
@@ -849,11 +958,15 @@ void ApplicationWindow::capStart2(bool start)
 
             gst_element_set_state(pline2, GST_STATE_PLAYING);
             g_main_loop_run(loop2);
+            g_source_remove (watch_id);
+            g_main_loop_unref (loop2);
         }
         else {
             gst_element_send_event(pline2,gst_event_new_eos());
             gst_element_set_state(pline,GST_STATE_NULL);
             gst_element_set_state(pline2,GST_STATE_NULL);
+            progbar2left->setValue(progbar2left->minimum());
+            progbar2right->setValue(progbar2right->minimum());
             g_main_loop_quit(loop2);
         }
     }

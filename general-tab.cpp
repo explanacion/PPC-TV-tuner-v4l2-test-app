@@ -420,6 +420,23 @@ capture_method:
 done:
 	QGridLayout::addWidget(new QWidget(parent), rowCount(), 0, 1, n);
 	setRowStretch(rowCount() - 1, 1);
+
+    progbar1left = new QProgressBar();
+    progbar1left->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
+    progbar1right = new QProgressBar();
+    progbar1right->setStyleSheet("QProgressBar { height: 15px; border: 2px solid grey; border-radius: 5px; text-align: right; } QProgressBar::chunk {background-color: #05B8CC; }");
+
+    proglabel = new QLabel();
+    proglabel->setText("Audio Level");
+    QHBoxLayout *proglayout = new QHBoxLayout();
+    QVBoxLayout *channelsproglayout = new QVBoxLayout();
+    channelsproglayout->addWidget(progbar1left);
+    channelsproglayout->addWidget(progbar1right);
+
+    proglayout->addWidget(proglabel);
+    proglayout->addLayout(channelsproglayout);
+    addLayout(proglayout,8,1);
+
 }
 
 

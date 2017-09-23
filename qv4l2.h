@@ -31,6 +31,7 @@
 #include <map>
 #include <vector>
 #include <QTableWidget>
+#include <QProgressBar>
 
 #include "v4l2-api.h"
 #include "raw2sliced.h"
@@ -67,6 +68,12 @@ enum CapMethod {
 struct buffer {
     void   *start;
     size_t  length;
+};
+
+class GetProgBarPointer {
+public:
+    gpointer leftbar;
+    gpointer rightbar;
 };
 
 class ApplicationWindow: public QMainWindow, public v4l2
@@ -113,6 +120,9 @@ private:
     GstElement *audioresample;
     GstElement *pline2;
     GMainLoop *loop2;
+    GstElement *level;
+
+    GetProgBarPointer *getpbpointer;
 
     bool startCapture(unsigned buffer_size);
     void stopCapture();
@@ -218,6 +228,9 @@ private:
     QFile m_saveRaw;
     QTabWidget *r_tabs;
     QTableWidget *radiofreqtable;
+    QLabel *proglabel;
+    QProgressBar *progbar2left;
+    QProgressBar *progbar2right;
 };
 
 extern ApplicationWindow *g_mw;
