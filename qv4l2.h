@@ -121,6 +121,8 @@ private:
     GstElement *pline2;
     GMainLoop *loop2;
     GstElement *level;
+    GstElement *rqueue;
+    GstElement *alsasink;
 
     bool startCapture(unsigned buffer_size);
     void stopCapture();

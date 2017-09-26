@@ -736,6 +736,7 @@ void ApplicationWindow::closeCaptureWin()
 }
 
 // 2017
+
 static gboolean message_handlermain(GstBus * bus, GstMessage * message, gpointer pbpointer)
 {
     if (message->type == GST_MESSAGE_ELEMENT) {
@@ -751,10 +752,12 @@ static gboolean message_handlermain(GstBus * bus, GstMessage * message, gpointer
             gint i;
             array_val = gst_structure_get_value (s, "peak");
             peak_arr = (GValueArray *) g_value_get_boxed (array_val);
+
             channels = peak_arr->n_values;
             for (i = 0; i < channels; ++i) {
                 value = g_value_array_get_nth (peak_arr, i);
                 peak_dB = g_value_get_double (value);
+
                 GetProgBarPointer* pbp = static_cast<GetProgBarPointer*>(pbpointer);
                 QProgressBar* progbar2left = static_cast<QProgressBar*>(pbp->leftbar);
                 QProgressBar* progbar2right = static_cast<QProgressBar*>(pbp->rightbar);
@@ -843,7 +846,7 @@ static gboolean message_handler (GstBus * bus, GstMessage * message, gpointer pb
                 QProgressBar* progbar2right = static_cast<QProgressBar*>(pbp->rightbar);
                 // set variables for the indicator
                 if (i == 0) {
-                    //g_print("%f",rms_dB);
+
                     progbar2left->setTextVisible(true);
                     //g_print("%f\n",rms_dB);
                     progbar2left->setValue(peak_dB);
@@ -1008,9 +1011,6 @@ void ApplicationWindow::capStart2(bool start)
             getpbpointer->rightbar = (gpointer)progbar2right;
             guint watch_id = gst_bus_add_watch (bus, message_handler, (gpointer)getpbpointer);
             gst_bus_add_watch(bus, bus_call, loop2);
-
-
-
             gst_object_unref(bus);
 
             pline = gst_pipeline_new("tuneraudiosetfreq");
@@ -1044,139 +1044,207 @@ void ApplicationWindow::stopCapture2()
 
 void ApplicationWindow::capStart(bool start)
 {
-    static const struct {
-        __u32 v4l2_pixfmt;
-        QImage::Format qt_pixfmt;
-    } supported_fmts[] = {
-#if Q_BYTE_ORDER == Q_BIG_ENDIAN
-        { V4L2_PIX_FMT_RGB32, QImage::Format_RGB32 },
-        { V4L2_PIX_FMT_RGB24, QImage::Format_RGB888 },
-        { V4L2_PIX_FMT_RGB565X, QImage::Format_RGB16 },
-        { V4L2_PIX_FMT_RGB555X, QImage::Format_RGB555 },
-#else
-        { V4L2_PIX_FMT_BGR32, QImage::Format_RGB32 },
-        { V4L2_PIX_FMT_RGB24, QImage::Format_RGB888 },
-        { V4L2_PIX_FMT_RGB565, QImage::Format_RGB16 },
-        { V4L2_PIX_FMT_RGB555, QImage::Format_RGB555 },
-        { V4L2_PIX_FMT_RGB444, QImage::Format_RGB444 },
-#endif
-        { 0, QImage::Format_Invalid }
-    };
-    QImage::Format dstFmt = QImage::Format_RGB888;
-    struct v4l2_fract interval;
-    v4l2_pix_format &srcPix = m_capSrcFormat.fmt.pix;
-    v4l2_pix_format &dstPix = m_capDestFormat.fmt.pix;
+    int tab = m_tabs->currentIndex();
+    if (tab == 0) {
+        static const struct {
+            __u32 v4l2_pixfmt;
+            QImage::Format qt_pixfmt;
+        } supported_fmts[] = {
+    #if Q_BYTE_ORDER == Q_BIG_ENDIAN
+            { V4L2_PIX_FMT_RGB32, QImage::Format_RGB32 },
+            { V4L2_PIX_FMT_RGB24, QImage::Format_RGB888 },
+            { V4L2_PIX_FMT_RGB565X, QImage::Format_RGB16 },
+            { V4L2_PIX_FMT_RGB555X, QImage::Format_RGB555 },
+    #else
+            { V4L2_PIX_FMT_BGR32, QImage::Format_RGB32 },
+            { V4L2_PIX_FMT_RGB24, QImage::Format_RGB888 },
+            { V4L2_PIX_FMT_RGB565, QImage::Format_RGB16 },
+            { V4L2_PIX_FMT_RGB555, QImage::Format_RGB555 },
+            { V4L2_PIX_FMT_RGB444, QImage::Format_RGB444 },
+    #endif
+            { 0, QImage::Format_Invalid }
+        };
+        QImage::Format dstFmt = QImage::Format_RGB888;
+        struct v4l2_fract interval;
+        v4l2_pix_format &srcPix = m_capSrcFormat.fmt.pix;
+        v4l2_pix_format &dstPix = m_capDestFormat.fmt.pix;
 
-    if (!start) {
-        stopCapture();
-        delete m_capNotifier;
-        m_capNotifier = NULL;
-        delete m_capImage;
-        m_capImage = NULL;
-        return;
-    }
-    m_showFrames = m_showFramesAct->isChecked();
-    m_frame = m_lastFrame = m_fps = 0;
-    m_capMethod = m_genTab->capMethod();
-
-    if (m_genTab->isSlicedVbi()) {
-        v4l2_format fmt;
-        v4l2_std_id std;
-
-        m_showFrames = false;
-        g_fmt_sliced_vbi(fmt);
-        g_std(std);
-        fmt.fmt.sliced.service_set = (std & V4L2_STD_625_50) ?
-            V4L2_SLICED_VBI_625 : V4L2_SLICED_VBI_525;
-        s_fmt(fmt);
-        memset(&m_vbiHandle, 0, sizeof(m_vbiHandle));
-        m_vbiTab->slicedFormat(fmt.fmt.sliced);
-        m_vbiSize = fmt.fmt.sliced.io_size;
-        m_frameData = new unsigned char[m_vbiSize];
-        if (startCapture(m_vbiSize)) {
-            m_capNotifier = new QSocketNotifier(fd(), QSocketNotifier::Read, m_tabs);
-            connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capVbiFrame()));
-        }
-        return;
-    }
-    if (m_genTab->isVbi()) {
-        v4l2_format fmt;
-        v4l2_std_id std;
-
-        g_fmt_vbi(fmt);
-        if (fmt.fmt.vbi.sample_format != V4L2_PIX_FMT_GREY) {
-            error("non-grey pixelformat not supported for VBI\n");
+        if (!start) {
+            stopCapture();
+            delete m_capNotifier;
+            m_capNotifier = NULL;
+            delete m_capImage;
+            m_capImage = NULL;
             return;
         }
-        s_fmt(fmt);
-        g_std(std);
-        if (!vbi_prepare(&m_vbiHandle, &fmt.fmt.vbi, std)) {
-            error("no services possible\n");
+        m_showFrames = m_showFramesAct->isChecked();
+        m_frame = m_lastFrame = m_fps = 0;
+        m_capMethod = m_genTab->capMethod();
+
+        if (m_genTab->isSlicedVbi()) {
+            v4l2_format fmt;
+            v4l2_std_id std;
+
+            m_showFrames = false;
+            g_fmt_sliced_vbi(fmt);
+            g_std(std);
+            fmt.fmt.sliced.service_set = (std & V4L2_STD_625_50) ?
+                V4L2_SLICED_VBI_625 : V4L2_SLICED_VBI_525;
+            s_fmt(fmt);
+            memset(&m_vbiHandle, 0, sizeof(m_vbiHandle));
+            m_vbiTab->slicedFormat(fmt.fmt.sliced);
+            m_vbiSize = fmt.fmt.sliced.io_size;
+            m_frameData = new unsigned char[m_vbiSize];
+            if (startCapture(m_vbiSize)) {
+                m_capNotifier = new QSocketNotifier(fd(), QSocketNotifier::Read, m_tabs);
+                connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capVbiFrame()));
+            }
             return;
         }
-        m_vbiTab->rawFormat(fmt.fmt.vbi);
-        m_vbiWidth = fmt.fmt.vbi.samples_per_line;
-        if (fmt.fmt.vbi.flags & V4L2_VBI_INTERLACED)
-            m_vbiHeight = fmt.fmt.vbi.count[0];
-        else
-            m_vbiHeight = fmt.fmt.vbi.count[0] + fmt.fmt.vbi.count[1];
-        m_vbiSize = m_vbiWidth * m_vbiHeight;
-        m_frameData = new unsigned char[m_vbiSize];
+        if (m_genTab->isVbi()) {
+            v4l2_format fmt;
+            v4l2_std_id std;
+
+            g_fmt_vbi(fmt);
+            if (fmt.fmt.vbi.sample_format != V4L2_PIX_FMT_GREY) {
+                error("non-grey pixelformat not supported for VBI\n");
+                return;
+            }
+            s_fmt(fmt);
+            g_std(std);
+            if (!vbi_prepare(&m_vbiHandle, &fmt.fmt.vbi, std)) {
+                error("no services possible\n");
+                return;
+            }
+            m_vbiTab->rawFormat(fmt.fmt.vbi);
+            m_vbiWidth = fmt.fmt.vbi.samples_per_line;
+            if (fmt.fmt.vbi.flags & V4L2_VBI_INTERLACED)
+                m_vbiHeight = fmt.fmt.vbi.count[0];
+            else
+                m_vbiHeight = fmt.fmt.vbi.count[0] + fmt.fmt.vbi.count[1];
+            m_vbiSize = m_vbiWidth * m_vbiHeight;
+            m_frameData = new unsigned char[m_vbiSize];
+            if (m_showFrames) {
+                m_capture->setMinimumSize(m_vbiWidth, m_vbiHeight);
+                m_capImage = new QImage(m_vbiWidth, m_vbiHeight, dstFmt);
+                m_capImage->fill(0);
+                m_capture->setImage(*m_capImage, "No frame");
+                m_capture->show();
+            }
+            statusBar()->showMessage("No frame");
+            if (startCapture(m_vbiSize)) {
+                m_capNotifier = new QSocketNotifier(fd(), QSocketNotifier::Read, m_tabs);
+                connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capVbiFrame()));
+            }
+            return;
+        }
+
+        g_fmt_cap(m_capSrcFormat);
+        s_fmt(m_capSrcFormat);
+        if (m_genTab->get_interval(interval))
+            set_interval(interval);
+
+        m_mustConvert = m_showFrames;
+        m_frameData = new unsigned char[srcPix.sizeimage];
         if (m_showFrames) {
-            m_capture->setMinimumSize(m_vbiWidth, m_vbiHeight);
-            m_capImage = new QImage(m_vbiWidth, m_vbiHeight, dstFmt);
+            m_capDestFormat = m_capSrcFormat;
+            dstPix.pixelformat = V4L2_PIX_FMT_RGB24;
+
+            for (int i = 0; supported_fmts[i].v4l2_pixfmt; i++) {
+                if (supported_fmts[i].v4l2_pixfmt == srcPix.pixelformat) {
+                    dstPix.pixelformat = supported_fmts[i].v4l2_pixfmt;
+                    dstFmt = supported_fmts[i].qt_pixfmt;
+                    m_mustConvert = false;
+                    break;
+                }
+            }
+            if (m_mustConvert) {
+                v4l2_format copy = m_capSrcFormat;
+
+                // check this line 2017
+                v4lconvert_try_format(m_convertData, &m_capDestFormat, &m_capSrcFormat);
+                // v4lconvert_try_format sometimes modifies the source format if it thinks
+                // that there is a better format available. Restore our selected source
+                // format since we do not want that happening.
+                m_capSrcFormat = copy;
+            }
+
+            m_capture->setMinimumSize(dstPix.width, dstPix.height);
+            m_capImage = new QImage(dstPix.width, dstPix.height, dstFmt);
             m_capImage->fill(0);
             m_capture->setImage(*m_capImage, "No frame");
             m_capture->show();
         }
+
         statusBar()->showMessage("No frame");
-        if (startCapture(m_vbiSize)) {
+        if (startCapture(srcPix.sizeimage)) {
             m_capNotifier = new QSocketNotifier(fd(), QSocketNotifier::Read, m_tabs);
-            connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capVbiFrame()));
+            connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capFrame()));
         }
-        return;
     }
+    else if (tab == 2) {
+        // listen to the radio without writing an audio file
 
-    g_fmt_cap(m_capSrcFormat);
-    s_fmt(m_capSrcFormat);
-    if (m_genTab->get_interval(interval))
-        set_interval(interval);
+        if (start)
+        {
 
-    m_mustConvert = m_showFrames;
-    m_frameData = new unsigned char[srcPix.sizeimage];
-    if (m_showFrames) {
-        m_capDestFormat = m_capSrcFormat;
-        dstPix.pixelformat = V4L2_PIX_FMT_RGB24;
+            loop2 = g_main_loop_new(NULL,FALSE);
+            pline2 = gst_pipeline_new("tuneraudioplay");
+            pline = gst_pipeline_new("tuneraudiosetfreq");
+            alsasrc = gst_element_factory_make("alsasrc","alsasrc");
+            rqueue = gst_element_factory_make("queue","queue");
+            audioconvert = gst_element_factory_make("audioconvert","audioconvert");
 
-        for (int i = 0; supported_fmts[i].v4l2_pixfmt; i++) {
-            if (supported_fmts[i].v4l2_pixfmt == srcPix.pixelformat) {
-                dstPix.pixelformat = supported_fmts[i].v4l2_pixfmt;
-                dstFmt = supported_fmts[i].qt_pixfmt;
-                m_mustConvert = false;
-                break;
-            }
+            level = gst_element_factory_make("level","level");
+            g_assert (level);
+            alsasink = gst_element_factory_make("alsasink","alsasink");
+
+            v4l2radio = gst_element_factory_make("v4l2radio","v4l2radio");
+            g_object_set(G_OBJECT(v4l2radio), "device", "/dev/radio0", NULL);
+            g_object_set(G_OBJECT(v4l2radio), "frequency", 92700000, NULL);
+            g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
+            g_object_set(G_OBJECT(level), "post-messages", TRUE, NULL);
+
+
+
+            gst_bin_add_many(GST_BIN(pline2),alsasrc,audioconvert,level,alsasink,NULL);
+
+            gst_element_link_many(alsasrc, audioconvert,level,alsasink,NULL);
+
+            GstCaps *caps;
+            caps = gst_caps_from_string("audio/x-raw,format=S16LE,rate=44100,channels=1");
+
+            gboolean link_ok;
+            link_ok = gst_element_link_filtered (alsasrc, audioconvert, caps);
+
+            bus = gst_element_get_bus(pline2);
+            getpbpointer = new GetProgBarPointer();
+            getpbpointer->leftbar = (gpointer)progbar2left;
+            getpbpointer->rightbar = (gpointer)progbar2right;
+
+            gst_bin_add(GST_BIN(pline),v4l2radio);
+            //gst_element_link(pline,pline2);
+
+            guint watch_id;
+            watch_id = gst_bus_add_watch(bus, message_handler, getpbpointer);
+            gst_bus_add_watch(bus, bus_call, loop2);
+            gst_object_unref(bus);
+            gst_element_set_state(pline, GST_STATE_PLAYING);
+            gst_element_set_state(pline2, GST_STATE_PLAYING);
+
+            g_main_loop_run(loop2);
+            g_main_loop_unref (loop2);
+
         }
-        if (m_mustConvert) {
-            v4l2_format copy = m_capSrcFormat;
-
-            v4lconvert_try_format(m_convertData, &m_capDestFormat, &m_capSrcFormat);
-            // v4lconvert_try_format sometimes modifies the source format if it thinks
-            // that there is a better format available. Restore our selected source
-            // format since we do not want that happening.
-            m_capSrcFormat = copy;
+        else {
+            gst_element_send_event(pline2,gst_event_new_eos());
+            gst_element_set_state(pline,GST_STATE_NULL);
+            gst_element_set_state(pline2,GST_STATE_NULL);
+            progbar2left->setValue(progbar2left->minimum());
+            progbar2right->setValue(progbar2right->minimum());
+            delete getpbpointer;
+            g_main_loop_quit(loop2);
         }
-
-        m_capture->setMinimumSize(dstPix.width, dstPix.height);
-        m_capImage = new QImage(dstPix.width, dstPix.height, dstFmt);
-        m_capImage->fill(0);
-        m_capture->setImage(*m_capImage, "No frame");
-        m_capture->show();
-    }
-
-    statusBar()->showMessage("No frame");
-    if (startCapture(srcPix.sizeimage)) {
-        m_capNotifier = new QSocketNotifier(fd(), QSocketNotifier::Read, m_tabs);
-        connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capFrame()));
     }
 }
 
