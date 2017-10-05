@@ -757,7 +757,7 @@ static gboolean message_handlermain(GstBus * bus, GstMessage * message, gpointer
             for (i = 0; i < channels; ++i) {
                 value = g_value_array_get_nth (peak_arr, i);
                 peak_dB = g_value_get_double (value);
-
+                //g_print("%f\n",peak_dB);
                 GetProgBarPointer* pbp = static_cast<GetProgBarPointer*>(pbpointer);
                 QProgressBar* progbar2left = static_cast<QProgressBar*>(pbp->leftbar);
                 QProgressBar* progbar2right = static_cast<QProgressBar*>(pbp->rightbar);
@@ -875,6 +875,7 @@ static gboolean message_handler (GstBus * bus, GstMessage * message, gpointer pb
 void ApplicationWindow::capStart2(bool start)
 {
     int tab = m_tabs->currentIndex();
+
     if (tab == 0) {
         if (start) {
             loop = g_main_loop_new(NULL,FALSE);
@@ -931,7 +932,6 @@ void ApplicationWindow::capStart2(bool start)
             gboolean link_ok;
             link_ok = gst_element_link_filtered (alsasrc, audioqueue, caps);
             gst_caps_unref (caps);
-
 
             bus = gst_pipeline_get_bus(GST_PIPELINE(pline));
             //gst_bus_add_watch(bus, bus_call, loop);
@@ -1046,6 +1046,51 @@ void ApplicationWindow::capStart(bool start)
 {
     int tab = m_tabs->currentIndex();
     if (tab == 0) {
+        if (start) {
+            // new capture via gstreamer api
+            loop2 = g_main_loop_new(NULL,FALSE);
+            pline = gst_pipeline_new("tunervideoplayimage");
+            pline2 = gst_pipeline_new("tunervideoplaysound");
+            v4l2src = gst_element_factory_make("v4l2src","v4l2src");
+            xvimagesink = gst_element_factory_make("xvimagesink","xvimagesink");
+            alsasrc = gst_element_factory_make("alsasrc","alsasrc");
+            level = gst_element_factory_make ("level", "level");
+            audioconvert = gst_element_factory_make("audioconvert","audioconvert");
+            alsasink = gst_element_factory_make("alsasink","alsasink");
+
+            g_object_set(G_OBJECT(v4l2src), "device", "/dev/video0", NULL);
+            g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
+            g_object_set (G_OBJECT (level), "post-messages", TRUE, NULL);
+
+            gst_bin_add_many(GST_BIN(pline),v4l2src,xvimagesink,NULL);
+            gst_bin_add_many(GST_BIN(pline2),alsasrc,audioconvert,level,alsasink,NULL);
+
+            gst_element_link_many(v4l2src,xvimagesink,NULL);
+            gst_element_link_many(alsasrc,audioconvert,level,alsasink,NULL);
+            bus = gst_pipeline_get_bus(GST_PIPELINE(pline2));
+            getpbpointer = new GetProgBarPointer();
+            getpbpointer->leftbar = (gpointer)progbar1left;
+            getpbpointer->rightbar = (gpointer)progbar1right;
+            guint watch_id = gst_bus_add_watch (bus, message_handler, (gpointer)getpbpointer);
+            gst_bus_add_watch(bus, bus_call, loop2);
+            gst_object_unref(bus);
+
+            gst_element_set_state(pline, GST_STATE_PLAYING);
+            gst_element_set_state(pline2, GST_STATE_PLAYING);
+            g_main_loop_run(loop2);
+            g_source_remove (watch_id);
+            g_main_loop_unref (loop2);
+        }
+        else {
+            gst_element_set_state(pline,GST_STATE_NULL);
+            gst_element_set_state(pline2,GST_STATE_NULL);
+            progbar1left->setValue(progbar1left->minimum());
+            progbar1right->setValue(progbar1right->minimum());
+            delete getpbpointer;
+            g_main_loop_quit(loop2);
+        }
+        // old capture via v4l2 api
+        /*
         static const struct {
             __u32 v4l2_pixfmt;
             QImage::Format qt_pixfmt;
@@ -1181,6 +1226,8 @@ void ApplicationWindow::capStart(bool start)
             m_capNotifier = new QSocketNotifier(fd(), QSocketNotifier::Read, m_tabs);
             connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capFrame()));
         }
+        */
+
     }
     else if (tab == 2) {
         // listen to the radio without writing an audio file

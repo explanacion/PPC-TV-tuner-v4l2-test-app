@@ -144,6 +144,7 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent, 
 		addWidget(m_tvStandard);
 		connect(m_tvStandard, SIGNAL(activated(int)), SLOT(standardChanged(int)));
 		refreshStandards();
+
 		addLabel("");
 		m_qryStandard = new QPushButton("Query Standard", parent);
 		addWidget(m_qryStandard);
@@ -283,6 +284,8 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent, 
     addLayout(chanlayout,3,1);
 
     //
+    // set SEKAM-D
+    m_tvStandard->setCurrentIndex(17);
 
 	if (m_modulator.capability) {
 		QDoubleValidator *val;
@@ -318,6 +321,8 @@ GeneralTab::GeneralTab(const QString &device, v4l2 &fd, int n, QWidget *parent, 
 			connect(m_rdsMode, SIGNAL(clicked()), SLOT(rdsModeChanged()));
 		}
 	}
+
+
 
 	if (isRadio())
 		goto done;

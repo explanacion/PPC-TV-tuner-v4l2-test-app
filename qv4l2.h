@@ -124,6 +124,8 @@ private:
     GstElement *rqueue;
     GstElement *alsasink;
 
+    GstElement *xvimagesink;
+
     bool startCapture(unsigned buffer_size);
     void stopCapture();
     void stopCapture2();
