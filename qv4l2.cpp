@@ -1248,7 +1248,19 @@ void ApplicationWindow::capStart(bool start)
 
             v4l2radio = gst_element_factory_make("v4l2radio","v4l2radio");
             g_object_set(G_OBJECT(v4l2radio), "device", "/dev/radio0", NULL);
-            g_object_set(G_OBJECT(v4l2radio), "frequency", 92700000, NULL);
+
+            // get frequency
+            double curfreq = linefreq->text().toDouble();
+            guint sfreq = curfreq*1000*1000;
+            if (sfreq == 0)
+            {
+                sfreq = 97.2*1000*1000;
+            }
+            if (sfreq > 108000000) {
+                sfreq = 107100000;
+            }
+
+            g_object_set(G_OBJECT(v4l2radio), "frequency", sfreq, NULL);
             g_object_set(G_OBJECT(alsasrc), "device","hw:1,0",NULL);
             g_object_set(G_OBJECT(level), "post-messages", TRUE, NULL);
 
